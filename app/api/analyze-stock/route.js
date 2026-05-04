@@ -7,7 +7,8 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 export async function POST(request) {
   try {
     const { companyName } = await request.json();
-
+    const normalizedCompanyName = normalizeCompanyName(companyName);
+    
     if (!companyName || typeof companyName !== "string") {
       return Response.json({ error: "회사명을 입력해주세요." }, { status: 400 });
     }
@@ -15,7 +16,28 @@ export async function POST(request) {
     if (!process.env.OPENAI_API_KEY) {
       return Response.json({ error: "OPENAI_API_KEY 환경변수가 설정되지 않았습니다." }, { status: 500 });
     }
-const news = await getNaverNews(companyName);
+const news = await getNaverNews(normalizedCompanyName);
+
+if (news.length < 2) {
+  return Response.json({
+    conclusion: "니는 이런걸 종목이라고 가져왔냐?",
+    oneLine: "입력한 값이 실제 상장사인지 확인이 어렵습니다.",
+    businessNature: [
+      "회사명으로 확인 가능한 최신 뉴스가 부족합니다.",
+      "종목명이 아니라 일반 단어이거나 잘못 입력된 값일 가능성이 큽니다."
+    ],
+    investmentPoints: [
+      "분석 불가입니다. 정확한 회사명 또는 종목명을 입력해야 합니다."
+    ],
+    risks: [
+      "존재하지 않는 회사명을 억지로 분석하면 잘못된 투자 판단으로 이어질 수 있습니다."
+    ],
+    investmentView: [
+      "예: SK텔레콤, 삼성전자, LG전자처럼 실제 회사명을 입력하세요."
+    ],
+    finalInterpretation: "회사부터 제대로 가져와라."
+  });
+}
 
 const newsText = news.map((item, i) => `
 ${i + 1}. ${item.title}
@@ -66,7 +88,8 @@ ${newsText}
 - conclusion은 반드시 추천/비추천/중립 중 하나의 뉘앙스를 명확히 포함
 - outdated한 산업 설명 금지
 - 최신 시장 흐름 반영 필수
-
+- 사용자가 입력한 회사명은 정규화된 회사명 기준으로만 분석한다.
+- 최신 뉴스 데이터가 부족하면 억지로 분석하지 말고 분석 불가로 판단한다.
 `;
 
     const completion = await openai.chat.completions.create({
@@ -101,4 +124,45 @@ async function getNaverNews(companyName) {
     description: item.description.replace(/<[^>]*>/g, ""),
     pubDate: item.pubDate,
   }));
+}
+function normalizeCompanyName(input) {
+  const name = input.trim().replace(/\s/g, "").toLowerCase();
+
+  const companyMap = {
+    skt: "SK텔레콤",
+    "sk텔레콤": "SK텔레콤",
+    "에스케이텔레콤": "SK텔레콤",
+    "에스케이텔레콤주식회사": "SK텔레콤",
+
+    "엘지유플러스": "LG유플러스",
+    "lg유플러스": "LG유플러스",
+    "lgu+": "LG유플러스",
+    "lguplus": "LG유플러스",
+    "유플러스": "LG유플러스",
+
+    "엘지전자": "LG전자",
+    "lg전자": "LG전자",
+
+    "엘지에너지솔루션": "LG에너지솔루션",
+    "lg에너지솔루션": "LG에너지솔루션",
+    "엘지엔솔": "LG에너지솔루션",
+    "lg엔솔": "LG에너지솔루션",
+
+    "하이닉스": "SK하이닉스",
+    "sk하이닉스": "SK하이닉스",
+    "에스케이하이닉스": "SK하이닉스",
+
+    "삼전": "삼성전자",
+    "삼성전자": "삼성전자",
+
+    "현차": "현대자동차",
+    "현대차": "현대자동차",
+    "현대자동차": "현대자동차",
+
+    "기아차": "기아",
+    "기아자동차": "기아",
+    "기아": "기아"
+  };
+
+  return companyMap[name] || input.trim();
 }
