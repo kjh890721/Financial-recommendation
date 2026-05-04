@@ -1,8 +1,8 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "GPT 주식 분석",
-  description: "회사명만 입력하면 투자 관점 요약을 제공합니다.",
+  title: "부자는 못돼도 똔똔은 칩시다",
+  description: "회사명만 입력하면 투자 관점을 한 줄로 평가합니다.",
 };
 
 export default function RootLayout({ children }) {
